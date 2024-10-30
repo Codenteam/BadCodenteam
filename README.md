@@ -26,8 +26,8 @@ This application showcases how common mistakes in coding practices can lead to s
 
 1.  **Clone the Repository:**
 
-        git clone https://github.com/yourusername/vulnerable-nodejs-app.git
-        cd vulnerable-nodejs-app
+        git clone https://github.com/Codenteam/BadCodenteam.git
+        cd BadCodenteam
 
 2.  **Install Dependencies:**
 

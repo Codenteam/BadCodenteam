@@ -3,8 +3,9 @@ const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-
 const app = express();
+var lo = require('lodash');
+
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Insecure database setup (A01:2021 - Broken Access Control, A06:2021 - Vulnerable and Outdated Components)
@@ -23,54 +24,99 @@ db.serialize(() => {
 
 // Insecure user login function
 app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+    try {
+        const { username, password } = lo.defaults(req.body, { username: '', password: '' });
 
-    // SQL Injection vulnerability (A03:2021 - Injection)
-    const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
-    db.get(query, (err, row) => {
-        if (err) throw err;
+        // SQL Injection vulnerability (A03:2021 - Injection)
+        const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
+        db.get(query, (err, row) => {
+            if (err) {
+                res.status(500).send('Internal server error: ' + query);
+                return;
+            }
 
-        if (row) {
-            // Sensitive data exposure (A02:2021 - Cryptographic Failures)
-            const token = jwt.sign({ id: row.id, username: row.username }, secret, { expiresIn: '1h' });
+            if (row) {
+                // Sensitive data exposure (A02:2021 - Cryptographic Failures)
+                const token = jwt.sign({ id: row.id, username: row.username }, secret, { expiresIn: '1h' });
 
-            // Lack of input validation (A04:2021 - Insecure Design, A05:2021 - Security Misconfiguration)
-            res.send(`Welcome ${username}, your token is ${token}`);
+                // Lack of input validation (A04:2021 - Insecure Design, A05:2021 - Security Misconfiguration)
+                res.send(`Welcome ${username}, your token is ${token}`);
 
-            // Logging sensitive information (A09:2021 - Security Logging and Monitoring Failures)
-            console.log(`User ${username} logged in with password ${password}`);
-        } else {
-            // Redirecting to login form with error message
-            res.redirect(`/login-form?error=User ${username} not found`);
-        }
-    });
+                // Logging sensitive information (A09:2021 - Security Logging and Monitoring Failures)
+                console.log(`User ${username} logged in with password ${password}`);
+            } else {
+                // Redirecting to login form with error message
+                res.redirect(`/login-form?error=User ${username} not found&username=${username}&password=${password}`);
+            }
+        });
+
+    } catch (err) {
+        res.status(500).send('Internal server error');
+    }
 });
 
 // Insecure password storage (A07:2021 - Identification and Authentication Failures)
 app.post('/register', (req, res) => {
-    const { username, password } = req.body;
+    try {
+        const { username, password } = req.body;
 
-    // Storing passwords in plaintext
-    const query = `INSERT INTO users (username, password) VALUES ('${username}', '${password}')`;
-    db.run(query, (err) => {
-        if (err) throw err;
-        res.send('User registered successfully');
-    });
+        // Storing passwords in plaintext
+        const query = `INSERT INTO users (username, password) VALUES ('${username}', '${password}')`;
+        db.run(query, (err) => {
+            if (err) {
+                res.status(500).send('Internal server error: ' + query);
+                return;
+            }
+            res.send('User registered successfully');
+        });
+    } catch (err) {
+        res.status(500).send('Internal server error');
+    }
+
 });
 
 // Example of a vulnerable API endpoint (A01:2021 - Broken Access Control)
 app.get('/admin', (req, res) => {
-    const token = req.headers['authorization'];
+    try {
+        const token = req.headers['authorization'];
 
-    // Insecure JWT verification
-    jwt.verify(token, secret, (err, decoded) => {
+        // Insecure JWT verification
+        jwt.verify(token, secret, (err, decoded) => {
+            if (err) {
+                res.status(500).send('Internal server error');
+                return;
+            } else {
+                // Allowing access based on decoded token without proper checks
+                res.send('Welcome to the admin area');
+            }
+        });
+    }
+    catch (err) {
+        res.status(500).send('Internal server error');
+    }
+});
+
+// Insecure API endpoint (A08:2021 - Injection)
+// Serve /query?query=SearchedQuery
+app.get('/query', (req, res) => {
+
+    // Find users based on the query
+
+    const query = ` Select username from users where username = '${req.query.query}';`;
+    db.run(query, (err, rows) => {
         if (err) {
-            res.status(403).send('Access denied');
-        } else {
-            // Allowing access based on decoded token without proper checks
-            res.send('Welcome to the admin area');
+            res.status(500).send('Internal server error');
+            return;
         }
+        res.send(rows);
     });
+
+});
+
+// Redirect to video tutorial
+app.get('/redirect', (req, res) => {
+    const url = req.query.url;
+    return res.redirect(url);
 });
 app.get('/login-form', (req, res) => {
     const html = `
@@ -146,15 +192,20 @@ app.get('/login-form', (req, res) => {
     <body>
         <div class="container">
             <h1>Login</h1>
+            <h2 style="color: red; font-size: 14px;">This is a highly vulnerable login form, used to demonstrate common security issues</h2>
             <h2>${req.query.error ? req.query.error : ''}</h2>
             <form id="loginForm" action="/login" method="POST">
                 <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required><br><br>
+                <input type="text" id="username" name="username" required value="${req.query.username ? req.query.username : ''}"><br><br>
                 <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required><br><br>
+                <input type="password" id="password" name="password" required value="${req.query.password ? req.query.password : ''}"><br><br>
                 <button type="submit">Login</button>
             </form>
+        <a href="/admin">Admin</a><br>
+        <a href="/query?query=">Find username</a><br>
+        <a href="/redirect?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ">Watch video tutorial</a>
         </div>
+
 
         <script>
             $(document).ready(function(){
