@@ -224,6 +224,6 @@ app.get('/', (req, res) => {
     res.redirect('/login-form');
 });
 // Insecure app listening on port 3000
-app.listen(80, () => {
+app.listen(3000, () => {
     console.log('Server started on http://localhost:3000');
 });
