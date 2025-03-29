@@ -230,7 +230,7 @@ app.get('/login-form', (req, res) => {
             </form>
         <a href="/admin">Admin</a><br>
         <a href="/query?query=">Find username</a><br>
-        <a href="/stack">Find username</a><br>
+        <a href="/stack">Forgot password</a><br>
         <a href="/redirect?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ">Watch video tutorial</a>
         </div>
 
