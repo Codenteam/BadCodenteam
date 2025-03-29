@@ -8,6 +8,16 @@ var lo = require('lodash');
 
 app.use(bodyParser.urlencoded({ extended: true }));
 
+
+app.use((req, res, next) => {
+    res.removeHeader("X-Powered-By");
+    res.setHeader("X-Powered-By", "Express 4.17.1");
+    res.setHeader('X-Internal-IP', '10.0.0.42');
+    res.setHeader("Server", "Apache/2.4.49 (Ubuntu)");
+
+    next();
+});
+
 // Insecure database setup (A01:2021 - Broken Access Control, A06:2021 - Vulnerable and Outdated Components)
 const db = new sqlite3.Database(':memory:'); // Using in-memory database for demonstration
 
@@ -118,6 +128,23 @@ app.get('/redirect', (req, res) => {
     const url = req.query.url;
     return res.redirect(url);
 });
+app.get('/stack', (req, res) => {
+    const fakeError = new Error("Simulated stack trace exposure");
+    fakeError.stack = `
+Error: Simulated stack trace exposure
+    at /app/routes/user.js:27:15
+    at Object.handle (/app/controllers/auth.js:88:13)
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+    at next (/app/node_modules/express/lib/router/route.js:137:13)
+    at Route.dispatch (/app/node_modules/express/lib/router/route.js:112:3)
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+    at /app/node_modules/express/lib/router/index.js:281:22
+    at Function.process_params (/app/node_modules/express/lib/router/index.js:335:12)
+    at next (/app/node_modules/express/lib/router/index.js:275:10)
+    at expressInit (/app/node_modules/express/lib/middleware/init.js:40:5)
+`;
+    res.status(500).send(fakeError.stack);
+});
 app.get('/login-form', (req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -203,6 +230,7 @@ app.get('/login-form', (req, res) => {
             </form>
         <a href="/admin">Admin</a><br>
         <a href="/query?query=">Find username</a><br>
+        <a href="/stack">Find username</a><br>
         <a href="/redirect?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ">Watch video tutorial</a>
         </div>
 
